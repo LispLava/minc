@@ -2,12 +2,15 @@
 open Parser
 }
 
-let space = [' ' '\t' '\n' '\r']
+let space = [' ' '\t' '\r']
 let digit = ['0'-'9']
 let lower = ['a'-'z']
 let upper = ['A'-'Z']
 
 rule token = parse
+| '\n'
+    { lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_lnum = lexbuf.lex_curr_p.pos_lnum + 1; pos_bol = lexbuf.lex_curr_p.pos_cnum };
+        token lexbuf }
 | space+
     { token lexbuf }
 | '"'

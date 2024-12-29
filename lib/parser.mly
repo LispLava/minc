@@ -191,10 +191,12 @@ fundef:
     { { args = $1; body = $5 }, $3 }
 
 formal_args:
-| IDENT formal_args
-    { addtyp $1 :: $2 }
 | IDENT
     { [addtyp $1] }
+| IDENT formal_args
+    { addtyp $1 :: $2 }
+| LPAREN maybe_typed_indent RPAREN
+    { [$2] }
 | LPAREN maybe_typed_indent RPAREN formal_args
     { $2 :: $4 }
 

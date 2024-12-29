@@ -47,7 +47,7 @@ let rec generalize env (t: Type.t): Type.p =
   let fv_e = free_vars_e env in
   let quantifiers = S.filter (fun x -> not (S.mem x fv_e)) fv in
   let g = S.fold (fun x t -> Type.Forall (x, t)) quantifiers (Type.Mono t) in
-  Format.printf "=============\ngeneralize: %a ==> %a\n" Type.pp t Type.pp_p g; flush stdout;
+  (* Format.printf "=============\ngeneralize: %a ==> %a\n" Type.pp t Type.pp_p g; flush stdout; *)
   g
 
 let rec (<$) (x: Type.v) (t: Type.t): bool = match t with
@@ -56,7 +56,7 @@ let rec (<$) (x: Type.v) (t: Type.t): bool = match t with
 
 let type_mismatch t1 t2 = failwith (Format.asprintf "Type mismatch: %a != %a" Type.pp t1 Type.pp t2)
 let rec unify (t1: Type.t) (t2: Type.t): m =
-  Format.printf "unify: %a, %a\n" Type.pp t1 Type.pp t2; flush stdout;
+  (* Format.printf "unify: %a, %a\n" Type.pp t1 Type.pp t2; flush stdout; *)
   match t1, t2 with
   | Type.Var x, Type.Var y when x == y -> M.empty
   | Type.Var x, _ -> if x <$ t2 then failwith "Infinite type detected." else M.add x t2 M.empty
@@ -117,7 +117,8 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   | _ -> failwith "_: Not implemented"
   in
   (* (Format.printf "s = %a\nex = \n%a\n\n\n\n\n" pp_m s Syntax.pp_e e; flush stdout; s) *)
-  (Format.printf "s = %a\n\n" pp_m s; flush stdout; s)
+  (* (Format.printf "s = %a\n\n" pp_m s; flush stdout; s) *)
+  s
 and infer_unary env u (e, tt) t =
   let infer_u env e (tt, a) (t, b) =
     let s1 = unify tt a in
