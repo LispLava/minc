@@ -24,6 +24,7 @@ print_int (gcd 239232 1526580)
 "
 let () = Format.printf "%s\n%a\n" prog Syntax.pp (parse prog) *)
 let prog_str = "let _ = () in -(10 + 10) < 20 * 2"
+let prog_str = "let rec f x = x in f 10"
 let prog = parse prog_str
 let () = Format.printf "%s\n%a\n" prog_str Syntax.pp prog
-let () = Format.printf "\n\n%s\n%a\n" prog_str Syntax.pp (Infer.infer prog)
+let () = Format.printf "\n\n%s\n%a\n" prog_str Infer.pp_m (Infer.infer prog)

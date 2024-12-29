@@ -39,6 +39,6 @@ let mk_lettuple typed_list rhs body =
 
 let mk_func id (abstraction, rettyp) exp =
   let typs = List.map snd abstraction.args in
-  let m = Type.(App(Fun, typs @ [rettyp])) in
+  let m = Type.func typs rettyp in
   (* The aliasing here is deliberate and important for correctness *)
   Let((id, Type.Mono m), (Abstraction abstraction, m), exp)

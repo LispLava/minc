@@ -1,7 +1,7 @@
 (* Hindley-Milner type system *)
 type p = (* polytype *)
   | Mono of t
-  | Forall of v * p [@@deriving show, eq, ord]
+  | Forall of v * p [@@deriving eq, ord]
 and v = I of int (* type variable *)
 and t = (* monotype *)
   | Var of v
@@ -27,7 +27,7 @@ let id_of_fun : (f -> string) = function
   | Fun -> "f"
 let pp_v ppf = function
   | I i -> Format.fprintf ppf "#%d" i
-let pp ppf = function
+let rec pp ppf = function
   | Var v -> pp_v ppf v
   | App (Unit, []) -> Format.fprintf ppf "unit"
   | App (Bool, []) -> Format.fprintf ppf "bool"
@@ -36,7 +36,7 @@ let pp ppf = function
   | App (String, []) -> Format.fprintf ppf "string"
   | App (Tuple, ts) -> Format.fprintf ppf "(%a)" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf " * ") pp) ts
   | App (Array, [t]) -> Format.fprintf ppf "%a array" pp t
-  | App (Fun, list) -> Format.fprintf ppf "%a -> %a" pp (List.hd list) pp (List.hd (List.tl list))
+  | App (Fun, [args; ret]) -> Format.fprintf ppf "(%a -> %a)" pp args pp ret
   | App (f, ts) -> Format.fprintf ppf "!!!%s %a!!!" (id_of_fun f) (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf " ") pp) ts
 let rec pp_p ppf = function
   | Mono t -> Format.fprintf ppf "%a" pp t
@@ -48,6 +48,8 @@ let int = App (Int, [])
 let float = App (Float, [])
 let string = App (String, [])
 let array x = App (Array, [x])
+let tuple lst = App (Tuple, lst)
+let func args ret = App (Fun, [tuple args; ret])
 let genvar: unit -> v =
   let counter = Atomic.make 0 in
   fun () -> (Atomic.incr counter; I (Atomic.get counter))
