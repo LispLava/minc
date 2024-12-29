@@ -1,0 +1,7 @@
+(menhir (modules parser))
+(ocamllex lexer)
+
+(library
+ (name minc)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord))
+ (modules m parser lexer id type op syntax alpha infer))

@@ -1,0 +1,10 @@
+(executable
+ (public_name minc)
+ (name main)
+ (libraries minc))
+
+
+(env
+  (debug
+      (flags (:standard -w -a))
+      (ocamlopt_flags (:standard -g))))
