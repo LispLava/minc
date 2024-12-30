@@ -7,6 +7,7 @@ type e =
   | Var of Id.t
   | Abstraction of fundef
   | A of Op.a * t list
+  | Fix of (Id.t * Type.t) * fundef
   | LetTuple of Id.t list * t * t
   [@@deriving show]
 and fundef = { args : (Id.t * Type.t) list; body : t } [@@deriving show]
@@ -40,5 +41,5 @@ let mk_lettuple typed_list rhs body =
 let mk_func id (abstraction, rettyp) exp =
   let typs = List.map snd abstraction.args in
   let m = Type.func typs rettyp in
-  (* The aliasing here is deliberate and important for correctness *)
-  Let((id, Type.Mono m), (Abstraction abstraction, m), exp)
+  (* Let((id, Type.Mono m), (Abstraction abstraction, m), exp) *)
+  Let((id, Type.Mono m), (Fix((id, Type.gentyp ()), abstraction), m), exp)

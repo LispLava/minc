@@ -75,8 +75,6 @@ let mk_op str = (Syntax.Var str, Type.gentyp ())
 let rec infer_m (env: env) ((e, t): Syntax.t): m =
   let s = match e with
   | Syntax.C c -> unify t (Op.c_to_type c)
-  (* TODO: We shouldn't handle built-in functions any differently from user
-  defined functions. To achieve that, we should cast*)
   | Syntax.U(u, e) -> let op = mk_op (Op.op_u_to_id u) in
     infer_m env (Syntax.A(Op.App, [op; e]), t)
   | Syntax.B(b, e1, e2) -> let op = mk_op (Op.op_b_to_id b) in
@@ -86,14 +84,10 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   | Syntax.Var id -> (match E.find_opt id env with
     | Some p -> unify t (inst p)
     | None -> failwith (Format.asprintf "Unbound variable: %a" Id.pp id))
-  | Syntax.Abstraction { args; body = (body, rettyp) } ->
-    let t' = Type.func (List.map snd args) rettyp in
-    let s = unify t t' in
-    let rettyp = apply s rettyp in
-    let env = apply_e s env in
-    let env = List.fold_left (fun env (id, typ) -> E.add id (Type.Mono (apply s typ)) env) env args in
-    let s2 = infer_m env (body, rettyp) in
-    combine s2 s
+  | Syntax.Abstraction fundef -> infer_abs env fundef t
+  | Syntax.Fix((id, t1), fundef) -> let env = E.add id (Type.Mono t) env in
+    let s = infer_m env (Syntax.Abstraction fundef, t) in
+    combine s (unify (apply s t) t1)
   | Syntax.A(Op.Tuple, _) -> failwith "A: Not implemented"
   | Syntax.A(Op.App, args) -> infer_app env args t
   | Syntax.Let((id, p), (e1, t1), (e2, t2)) ->
@@ -115,6 +109,14 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   (* (Format.printf "s = %a\nex = \n%a\n\n\n\n\n" pp_m s Syntax.pp_e e; flush stdout; s) *)
   (* (Format.printf "s = %a\n\n" pp_m s; flush stdout; s) *)
   s
+and infer_abs env { args; body = (body, rettyp) } t =
+  let t' = Type.func (List.map snd args) rettyp in
+  let s = unify t t' in
+  let rettyp = apply s rettyp in
+  let env = apply_e s env in
+  let env = List.fold_left (fun env (id, typ) -> E.add id (Type.Mono (apply s typ)) env) env args in
+  let s2 = infer_m env (body, rettyp) in
+  combine s2 s
 and infer_app env args t =
   match args with
   | ((f, f_t)::args) ->

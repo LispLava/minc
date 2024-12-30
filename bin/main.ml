@@ -29,7 +29,7 @@ let prog_strs = prog_strs @ ["let rec gcd (m: int) n : int =
   else (
     print_int m; print_string \", \"; print_int n; print_newline ();
     let m: int = (m mod (n: int)) in
-    n + m
+    gcd n m
   ) in
 print_int (gcd 239232 1526580)
 "]
