@@ -88,27 +88,18 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   | Syntax.Fix((id, t1), fundef) -> let env = E.add id (Type.Mono t) env in
     let s = infer_m env (Syntax.Abstraction fundef, t) in
     combine s (unify (apply s t) t1)
-  | Syntax.A(Op.Tuple, _) -> failwith "A: Not implemented"
+  | Syntax.A(Op.Tuple, args) -> infer_tuple env args t
   | Syntax.A(Op.App, args) -> infer_app env args t
-  | Syntax.Let((id, p), (e1, t1), (e2, t2)) ->
-    let s1 = infer_m env (e1, t1) in
-    let t1 = apply s1 t1 in
-    let env = apply_e s1 env in
-    let s1, env = (match p with
-      | Type.Mono mono -> let s1 = combine (unify mono t1) s1 in (* type-check p *)
-        s1, E.add id (generalize env (apply s1 t1)) env
-      | Type.Forall _ -> (
-        Format.fprintf Format.err_formatter "Type checking of polymorphic types is not implemented yet. Got: %a\n" Type.pp_p p;
-        s1, E.add id (generalize env (apply s1 t1)) env)
-    ) in
-    let s2 = infer_m env (e2, apply s1 t2) in
-    let s = combine s2 s1 in
-    combine s (unify (apply s t2) t)
-  | Syntax.LetTuple(_, _, _) -> failwith "LetTuple Not implemented"
+  | Syntax.Let(id, e1, e2) -> infer_let env id e1 e2 t
+  | Syntax.LetTuple(ids, e1, e2) -> infer_lettuple env ids e1 e2 t
   in
   (* (Format.printf "s = %a\nex = \n%a\n\n\n\n\n" pp_m s Syntax.pp_e e; flush stdout; s) *)
   (* (Format.printf "s = %a\n\n" pp_m s; flush stdout; s) *)
   s
+and infer_tuple env args t =
+  let s = List.fold_left (fun s (e, t) -> combine (infer_m env (e, t)) s) M.empty args in
+  let ts = List.map (fun (_, t) -> apply s t) args in
+  combine s (unify t (Type.tuple ts))
 and infer_abs env { args; body = (body, rettyp) } t =
   let t' = Type.func (List.map snd args) rettyp in
   let s = unify t t' in
@@ -126,6 +117,30 @@ and infer_app env args t =
     let s = List.fold_left (fun s (e, t) -> combine (infer_m env (e, apply s t)) s) s args in
     combine s (unify (apply s f_t') f_t) (* type-check f_t *)
   | _ -> failwith "Empty application"
+and infer_let env (id, p) (e1, t1) (e2, t2) t =
+  let s1 = infer_m env (e1, t1) in
+  let t1 = apply s1 t1 in
+  let env = apply_e s1 env in
+  let s1, env = (match p with
+    | Type.Mono mono -> let s1 = combine (unify mono t1) s1 in (* type-check p *)
+      s1, E.add id (generalize env (apply s1 t1)) env
+    | Type.Forall _ -> (
+      Format.fprintf Format.err_formatter "Type checking of polymorphic types is not implemented yet. Got: %a\n" Type.pp_p p;
+      s1, E.add id (generalize env (apply s1 t1)) env)
+  ) in
+  let s2 = infer_m env (e2, apply s1 t2) in
+  let s = combine s2 s1 in
+  combine s (unify (apply s t2) t)
+and infer_lettuple env ids (e1, t1) (e2, t2) t =
+  let s1 = infer_m env (e1, t1) in
+  let t1 = apply s1 t1 in
+  let env = apply_e s1 env in
+  let env = List.fold_left (fun env (id, t) -> E.add id (Type.Mono (apply s1 t)) env) env ids in
+  let s2 = infer_m env (e2, t2) in
+  let s = combine s2 s1 in
+  let t1' = Type.tuple (List.map (fun (_, t) -> apply s t) ids) in
+  let s = combine s (unify t1 t1') in
+  combine s (unify (apply s t2) t)
 
 let default_env = let env = E.empty in
   let env = E.add (Id.mk "print_int") (Type.Mono (Type.func [Type.int] Type.unit)) env in

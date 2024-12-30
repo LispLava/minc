@@ -156,16 +156,16 @@ exp:
     { addtyp (mk_if $2 $4 $6) }
 | LET IDENT EQUAL exp IN exp
     %prec prec_let
-    { addtyp (Let(addptyp $2, $4, $6)) }
+    { mk_let (addptyp $2) $4 $6 }
 | LET LPAREN RPAREN EQUAL exp IN exp
     %prec prec_let
-    { addtyp (Let(unit_id, $5, $7)) }
+    { mk_let unit_id $5 $7 }
 | LET IDENT COLON type_exp EQUAL exp IN exp
     %prec prec_let
-    { addtyp (Let(mkptyp $2 $4, $6, $8)) }
+    { mk_let (mkptyp $2 $4) $6 $8 }
 | LET REC IDENT fundef IN exp
     %prec prec_let
-    { addtyp (mk_func $3 $4 $6) }
+    { mk_func $3 $4 $6 }
 | simple_exp actual_args
     %prec prec_app
     { addtyp (mk_app ([$1] @ $2)) }
@@ -177,7 +177,7 @@ exp:
 | simple_exp DOT LPAREN exp RPAREN LESS_MINUS exp
     { addtyp (mk_put $1 $4 $7) }
 | exp SEMICOLON exp
-    { addtyp (Let(unit_id, $1, $3)) }
+    { mk_let unit_id $1 $3 }
 | ARRAY_CREATE simple_exp simple_exp
     %prec prec_app
     { addtyp (mk_array $2 $3) }

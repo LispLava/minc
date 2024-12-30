@@ -35,6 +35,5 @@ print_int (gcd 239232 1526580)
 "]
 let () = List.iter (fun prog_str ->
   let prog = parse prog_str in
-  (* Format.printf "%s\n%a\n" prog_str Syntax.pp prog; *)
-  Format.printf "\n\n%s\n%a\n" prog_str Infer.pp_m (Infer.infer prog);
+  Format.printf "\n\nsource = %s\nast = %a\ntype inference = %a\n" prog_str Syntax.pp prog Infer.pp_m (Infer.infer prog);
 ) prog_strs

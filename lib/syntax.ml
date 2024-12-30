@@ -8,7 +8,15 @@ type e =
   | Abstraction of fundef
   | A of Op.a * t list
   | Fix of (Id.t * Type.t) * fundef
-  | LetTuple of Id.t list * t * t
+  (*
+  Generalizing for LetTuple would permit impredicable types like:
+  (∀a. a->a) * (∀a. a->a)
+  Thus, we should treat it as just tuple destructuring. Further reading:
+  Alejandro Serrano, Jurriaan Hage, Simon Peyton Jones, and Dimitrios
+  Vytiniotis. 2020. A quick look at impredicativity. Proc. ACM Program. Lang.
+  4, ICFP, Article 89 (August 2020), 29 pages. https://doi.org/10.1145/3408971
+  *)
+  | LetTuple of (Id.t * Type.t) list * t * t
   [@@deriving show]
 and fundef = { args : (Id.t * Type.t) list; body : t } [@@deriving show]
 and t = e * Type.t [@@deriving show, eq, ord]
@@ -34,12 +42,12 @@ let mk_put a b c = T(Op.Put, a, b, c)
 let mk_tuple a = A(Op.Tuple, a)
 let mk_app a = A(Op.App, a)
 
+let mk_let id rhs body =
+  (Let(id, rhs, body), snd body)
 let mk_lettuple typed_list rhs body =
-  let ids, typs = List.split typed_list in
-  (LetTuple(ids, rhs, body), Type.App(Type.Tuple, typs))
+  (LetTuple(typed_list, rhs, body), snd body)
 
 let mk_func id (abstraction, rettyp) exp =
   let typs = List.map snd abstraction.args in
   let m = Type.func typs rettyp in
-  (* Let((id, Type.Mono m), (Abstraction abstraction, m), exp) *)
-  Let((id, Type.Mono m), (Fix((id, Type.gentyp ()), abstraction), m), exp)
+  mk_let (id, Type.Mono m) (Fix((id, Type.gentyp ()), abstraction), m) exp
