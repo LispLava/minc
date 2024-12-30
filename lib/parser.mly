@@ -2,10 +2,10 @@
 open Syntax
 let addtyp x = (x, Type.gentyp ())
 let addptyp x = (x, Type.Mono (Type.gentyp ()))
-let mktyp (x: e) ty : t = (x, ty)
 let mkptyp x ty = (x, Type.Mono ty)
 let settyp (x, _) ty = (x, ty)
 let parse_type ((x, _): Id.t) = Type.parse_type x
+let unit_id = addptyp (Id.mk "()")
 %}
 
 %token <bool> BOOL
@@ -157,6 +157,9 @@ exp:
 | LET IDENT EQUAL exp IN exp
     %prec prec_let
     { addtyp (Let(addptyp $2, $4, $6)) }
+| LET LPAREN RPAREN EQUAL exp IN exp
+    %prec prec_let
+    { addtyp (Let(unit_id, $5, $7)) }
 | LET IDENT COLON type_exp EQUAL exp IN exp
     %prec prec_let
     { addtyp (Let(mkptyp $2 $4, $6, $8)) }
@@ -174,7 +177,7 @@ exp:
 | simple_exp DOT LPAREN exp RPAREN LESS_MINUS exp
     { addtyp (mk_put $1 $4 $7) }
 | exp SEMICOLON exp
-    { mktyp (Let(Id.gen_typed_tmp Type.unit, $1, $3)) Type.unit }
+    { addtyp (Let(unit_id, $1, $3)) }
 | ARRAY_CREATE simple_exp simple_exp
     %prec prec_app
     { addtyp (mk_array $2 $3) }

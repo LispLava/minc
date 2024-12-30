@@ -5,9 +5,9 @@ See Fig. 3 in Oukseh Lee and Kwangkeun Yi. 1998. Proofs about a folklore
 let-polymorphic type inference algorithm. ACM Trans. Program. Lang. Syst. 20, 4
 (July 1998), 707–723.  https://doi.org/10.1145/291891.291892
 *)
-module E = M.Make(struct type t = Id.t let equal = Id.equal let compare = Id.compare end)
+module E = M.Make(struct type t = Id.t let compare = Id.compare end)
 type env = Type.p E.t
-module M = M.Make(struct type t = Type.v let equal = Type.equal_v let compare = Type.compare_v end)
+module M = M.Make(struct type t = Type.v let compare = Type.compare_v end)
 type m = Type.t M.t
 module S = Set.Make(struct type t = Type.v let compare = Type.compare_v end)
 let rec apply (m: m) t = match t with
@@ -19,7 +19,7 @@ let rec apply_p (m: m) t = match t with
       failwith "Internal error: substitution conflicts with quantified variable."
     else
       Type.Forall (x, apply_p m t)
-let rec apply_e (m: m) (env: env) = E.map (fun t -> apply_p m t) env
+let apply_e (m: m) (env: env) = E.map (fun t -> apply_p m t) env
 
 let combine (m2: m) (m1: m) = M.fold (fun k v m -> M.add k (apply m2 v) m) m1 m2
 
@@ -42,7 +42,7 @@ let rec free_vars_p (t: Type.p): S.t = match t with
   | Type.Forall (x, t) -> S.remove x (free_vars_p t)
 let free_vars_e (env: env): S.t = E.fold (fun _ t acc -> S.union (free_vars_p t) acc) env S.empty
 
-let rec generalize env (t: Type.t): Type.p =
+let generalize env (t: Type.t): Type.p =
   let fv = free_vars t in
   let fv_e = free_vars_e env in
   let quantifiers = S.filter (fun x -> not (S.mem x fv_e)) fv in
@@ -66,21 +66,23 @@ let rec unify (t1: Type.t) (t2: Type.t): m =
     else (try List.fold_left2 (fun m t1 t2 -> combine (unify (apply m t1) (apply m t2)) m) M.empty ts1 ts2 with
       | Invalid_argument _ -> type_mismatch t1 t2)
 
-let infer_c env c t = unify t (Op.c_to_type c)
-
 let pp_m ppf m =
   Format.fprintf ppf "{ ";
   M.iter (fun x t -> Format.fprintf ppf "%a -> %a, " Type.pp_v x Type.pp t) m;
   Format.fprintf ppf " }"
 
+let mk_op str = (Syntax.Var str, Type.gentyp ())
 let rec infer_m (env: env) ((e, t): Syntax.t): m =
   let s = match e with
-  | Syntax.C c -> infer_c env c t
+  | Syntax.C c -> unify t (Op.c_to_type c)
   (* TODO: We shouldn't handle built-in functions any differently from user
   defined functions. To achieve that, we should cast*)
-  | Syntax.U(u, e) -> infer_unary env u e t
-  | Syntax.B(b, e1, e2) -> infer_binary env b e1 e2 t
-  | Syntax.T(op, e1, e2, e3) -> failwith "T: Not implemented"
+  | Syntax.U(u, e) -> let op = mk_op (Op.op_u_to_id u) in
+    infer_m env (Syntax.A(Op.App, [op; e]), t)
+  | Syntax.B(b, e1, e2) -> let op = mk_op (Op.op_b_to_id b) in
+    infer_m env (Syntax.A(Op.App, [op; e1; e2]), t)
+  | Syntax.T(op, e1, e2, e3) -> let op = mk_op (Op.op_t_to_id op) in
+    infer_m env (Syntax.A(Op.App, [op; e1; e2; e3]), t)
   | Syntax.Var id -> (match E.find_opt id env with
     | Some p -> unify t (inst p)
     | None -> failwith (Format.asprintf "Unbound variable: %a" Id.pp id))
@@ -92,13 +94,8 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
     let env = List.fold_left (fun env (id, typ) -> E.add id (Type.Mono (apply s typ)) env) env args in
     let s2 = infer_m env (body, rettyp) in
     combine s2 s
-  | Syntax.A(Op.Tuple, es) -> failwith "A: Not implemented"
-  | Syntax.A(Op.App, (f, f_t)::args) ->
-    let f_t' = Type.func (List.map snd args) t in
-    let s = infer_m env (f, f_t') in
-    let env = apply_e s env in
-    let s = List.fold_left (fun s (e, t) -> combine (infer_m env (e, apply s t)) s) s args in
-    combine s (unify (apply s f_t') f_t) (* type-check f_t *)
+  | Syntax.A(Op.Tuple, _) -> failwith "A: Not implemented"
+  | Syntax.A(Op.App, args) -> infer_app env args t
   | Syntax.Let((id, p), (e1, t1), (e2, t2)) ->
     let s1 = infer_m env (e1, t1) in
     let t1 = apply s1 t1 in
@@ -113,65 +110,66 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
     let s2 = infer_m env (e2, apply s1 t2) in
     let s = combine s2 s1 in
     combine s (unify (apply s t2) t)
-  | Syntax.LetTuple(ids, e1, e2) -> failwith "LetTuple Not implemented"
-  | _ -> failwith "_: Not implemented"
+  | Syntax.LetTuple(_, _, _) -> failwith "LetTuple Not implemented"
   in
   (* (Format.printf "s = %a\nex = \n%a\n\n\n\n\n" pp_m s Syntax.pp_e e; flush stdout; s) *)
   (* (Format.printf "s = %a\n\n" pp_m s; flush stdout; s) *)
   s
-and infer_unary env u (e, tt) t =
-  let infer_u env e (tt, a) (t, b) =
-    let s1 = unify tt a in
-    let s2 = unify t b in
-    let s = combine s2 s1 in
+and infer_app env args t =
+  match args with
+  | ((f, f_t)::args) ->
+    let f_t' = Type.func (List.map snd args) t in
+    let s = infer_m env (f, f_t') in
     let env = apply_e s env in
-    combine (infer_m env (e, apply s tt)) s
-  in match u with
-  | Op.Not -> infer_u env e (tt, Type.bool) (t, Type.bool)
-  | Op.Neg -> infer_u env e (tt, t) (t, tt)
-and infer_binary env b (e1, tt1) (e2, tt2) t =
-  let infer_b env e1 e2 (tt1, a) (tt2, b) (t, c) =
-    let s1 = unify tt1 a in
-    let s2 = unify tt2 b in
-    let s3 = unify t c in
-    let s = combine s3 (combine s2 s1) in
-    let env = apply_e s env in
-    let s1 = infer_m env (e1, apply s tt1) in
-    let s1 = combine s1 s in
-    let s2 = infer_m env (e2, apply s1 tt2) in
-    let s = combine s2 s1 in
-    s
-  in match b with
-  | Op.Add | Op.Sub | Op.Mul | Op.Div -> infer_b env e1 e2 (tt1, tt2) (tt2, tt1) (t, tt1)
-  | Op.Mod -> infer_b env e1 e2 (tt1, Type.int) (tt2, Type.int) (t, Type.int)
-  | Op.Eq | Op.LE -> infer_b env e1 e2 (tt1, tt2) (tt2, tt1) (t, Type.bool)
-  | Op.Array -> infer_b env e1 e2 (tt1, tt1) (tt2, Type.int) (t, Type.array tt1)
-  | Op.Get -> infer_b env e1 e2 (tt1, Type.array t) (tt2, Type.int) (t, t)
+    let s = List.fold_left (fun s (e, t) -> combine (infer_m env (e, apply s t)) s) s args in
+    combine s (unify (apply s f_t') f_t) (* type-check f_t *)
+  | _ -> failwith "Empty application"
 
-(* let rec apply_sub (m: m) (e: Syntax.t): Syntax.t = match e with
-  | (Syntax.C c, t) -> (Syntax.C c, apply m t)
-  | (Syntax.U(u, e), t) -> (Syntax.U(u, apply_sub m e), apply m t)
-  | (Syntax.B(b, e1, e2), t) ->
-    (Syntax.B(b, apply_sub m e1, apply_sub m e2), apply m t)
-  | (Syntax.T(op, e1, e2, e3), t) -> Syntax.T(op, apply_sub m e1, apply_sub m e2, apply_sub m e3), apply m t
-  | (Syntax.Var id, t) -> (Syntax.Var id, apply m t)
-  | (Syntax.Abstraction { args; body = (body, rettyp) }, t) ->
-    let rettyp = apply m rettyp in
-    let body = apply_sub m body in
-    let args = List.map (fun (id, typ) -> (id, apply m typ)) args in
-    (Syntax.Abstraction { args; body = (body, rettyp) }, apply m t)
-  | (Syntax.A(Op.Tuple, es), t) -> (Syntax.A(Op.Tuple, List.map (fun e -> apply_sub m e) es), apply m t)
-  | (Syntax.A(Op.App, (f, f_t)::args), t) ->
-    let f_t = apply m f_t in
-    let f = apply_sub m f in
-    let args = List.map (fun (e, t) -> (apply_sub m e, apply m t)) args in
-    (Syntax.A(Op.App, (f, f_t)::args), apply m t)
-  | (Syntax.Let((id, p), (e1, t1), (e2, t2)), t) ->
-    let t1 = apply m t1 in
-    let t2 = apply m t2 in
-    let e1 = apply_sub m e1 in
-    let e2 = apply_sub m e2 in
-    (Syntax.Let((id, p), (e1, t1), (e2, t2)), apply m t)
-  | (Syntax.LetTuple(ids, e1, e2), t) -> failwith "LetTuple Not implemented"
-  | _ -> failwith "_: Not implemented" *)
-let infer e = infer_m E.empty e
+let default_env = let env = E.empty in
+  let env = E.add (Id.mk "print_int") (Type.Mono (Type.func [Type.int] Type.unit)) env in
+  let env = E.add (Id.mk "print_float") (Type.Mono (Type.func [Type.float] Type.unit)) env in
+  let env = E.add (Id.mk "print_string") (Type.Mono (Type.func [Type.string] Type.unit)) env in
+  let env = E.add (Id.mk "print_newline") (Type.Mono (Type.func [Type.unit] Type.unit)) env in
+  let a, b, c = Type.genvar (), Type.genvar (), Type.genvar () in
+  let open Op in
+  (* Unary functions *)
+  (* bool -> bool *)
+  let env = E.add (op_u_to_id Not) (Type.Mono (Type.func [Type.bool] Type.bool)) env in
+  (* 'a -> 'a *)
+  let f_a_a' = Type.(func [Var a] (Var a)) in
+  let f_a_a = Type.(Forall (a, Mono f_a_a')) in
+  let env = E.add (op_u_to_id Neg) f_a_a env in
+
+  (* Binary functions *)
+  (* ('a, 'b) -> 'c *)
+  let f_abc' = Type.(func [Var a; Var b] (Var c)) in
+  let f_abc = Type.(Forall (a, Forall (b, Forall (c, Mono f_abc')))) in
+  let bop = [Add; Sub; Mul; Div] in
+  let env = List.fold_left (fun env op -> E.add (op_b_to_id op) f_abc env) env bop in
+  let f_int_int_int = Type.(Mono (func [int; int] int)) in
+  let env = E.add (op_b_to_id Mod) f_int_int_int env in
+  (* ('a, 'b) -> bool *)
+  let f_a_b_bool' = Type.(func [Var a; Var b] bool) in
+  let f_a_b_bool = Type.(Forall (a, Forall (b, Mono f_a_b_bool'))) in
+  let bop = [Eq; LE] in
+  let env = List.fold_left (fun env op -> E.add (op_b_to_id op) f_a_b_bool env) env bop in
+
+  let f_a_int_arraya' = Type.(func [Var a; int] (array (Var a))) in
+  let f_a_int_arraya = Type.(Forall (a, Mono f_a_int_arraya')) in
+  let env = E.add (op_b_to_id Array) f_a_int_arraya env in
+  (* ('a array, int) -> 'a *)
+  let f_arraya_int_a' = Type.(func [array (Var a); int] (Var a)) in
+  let f_arraya_int_a = Type.(Forall (a, Mono f_arraya_int_a')) in
+  let env = E.add (op_b_to_id Get) f_arraya_int_a env in
+
+  (* Ternary functions *)
+  (* (bool, 'a, 'a) -> 'a *)
+  let f_bool_a_a_a' = Type.(func [bool; Var a; Var a] (Var a)) in
+  let f_bool_a_a_a = Type.(Forall (a, Mono f_bool_a_a_a')) in
+  let env = E.add (op_t_to_id If) f_bool_a_a_a env in
+  (* ('a array, int, 'a) -> unit *)
+  let f_arraya_int_a_unit' = Type.(func [array (Var a); int; Var a] unit) in
+  let f_arraya_int_a_unit = Type.(Forall (a, Mono f_arraya_int_a_unit')) in
+  let env = E.add (op_t_to_id Put) f_arraya_int_a_unit env in
+  env
+let infer e = infer_m default_env e

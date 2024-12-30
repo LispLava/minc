@@ -54,13 +54,6 @@ let genvar: unit -> v =
   let counter = Atomic.make 0 in
   fun () -> (Atomic.incr counter; I (Atomic.get counter))
 let gentyp () = Var(genvar ())
-let parse_type x = match x with
-  | "unit" -> Unit
-  | "bool" -> Bool
-  | "int" -> Int
-  | "float" -> Float
-  | "string" -> String
-  | _ -> failwith ("unknown type: " ^ x)
 
 let id_of_mono : (t -> string) = function
   | Var _ -> failwith "type variable must be instantiated to have an identifier"
