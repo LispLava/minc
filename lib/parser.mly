@@ -168,7 +168,7 @@ exp:
     { mk_func $3 $4 $6 }
 | simple_exp actual_args
     %prec prec_app
-    { addtyp (mk_app ([$1] @ $2)) }
+    { addtyp (mk_app $1 $2) }
 | elems
     %prec prec_tuple
     { addtyp (mk_tuple $1) }

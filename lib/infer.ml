@@ -4,6 +4,8 @@ Algorithm M
 See Fig. 3 in Oukseh Lee and Kwangkeun Yi. 1998. Proofs about a folklore
 let-polymorphic type inference algorithm. ACM Trans. Program. Lang. Syst. 20, 4
 (July 1998), 707–723.  https://doi.org/10.1145/291891.291892
+
+Low priority TODO: optimize the M (Type.v -> Type.t) data structure.
 *)
 module E = M.Make(struct type t = Id.t let compare = Id.compare end)
 type env = Type.p E.t
@@ -63,7 +65,7 @@ let rec unify (t1: Type.t) (t2: Type.t): m =
   | _, Type.Var _ -> unify t2 t1
   | Type.App (f1, ts1), Type.App (f2, ts2) ->
     if f1 != f2 then type_mismatch t1 t2
-    else (try List.fold_left2 (fun m t1 t2 -> combine (unify (apply m t1) (apply m t2)) m) M.empty ts1 ts2 with
+    else (try List.fold_left2 (fun m t1 t2 -> combine m (unify (apply m t1) (apply m t2))) M.empty ts1 ts2 with
       | Invalid_argument _ -> type_mismatch t1 t2)
 
 let pp_m ppf m =
@@ -76,20 +78,19 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   let s = match e with
   | Syntax.C c -> unify t (Op.c_to_type c)
   | Syntax.U(u, e) -> let op = mk_op (Op.op_u_to_id u) in
-    infer_m env (Syntax.A(Op.App, [op; e]), t)
+    infer_app env op [e] t
   | Syntax.B(b, e1, e2) -> let op = mk_op (Op.op_b_to_id b) in
-    infer_m env (Syntax.A(Op.App, [op; e1; e2]), t)
+    infer_app env op [e1; e2] t
   | Syntax.T(op, e1, e2, e3) -> let op = mk_op (Op.op_t_to_id op) in
-    infer_m env (Syntax.A(Op.App, [op; e1; e2; e3]), t)
+    infer_app env op [e1; e2; e3] t
   | Syntax.Var id -> (match E.find_opt id env with
     | Some p -> unify t (inst p)
     | None -> failwith (Format.asprintf "Unbound variable: %a" Id.pp id))
-  | Syntax.Abstraction fundef -> infer_abs env fundef t
   | Syntax.Fix((id, t1), fundef) -> let env = E.add id (Type.Mono t) env in
-    let s = infer_m env (Syntax.Abstraction fundef, t) in
+    let s = infer_abs env fundef t in
     combine s (unify (apply s t) t1)
-  | Syntax.A(Op.Tuple, args) -> infer_tuple env args t
-  | Syntax.A(Op.App, args) -> infer_app env args t
+  | Syntax.Tuple(args) -> infer_tuple env args t
+  | Syntax.App(f, args) -> infer_app env f args t
   | Syntax.Let(id, e1, e2) -> infer_let env id e1 e2 t
   | Syntax.LetTuple(ids, e1, e2) -> infer_lettuple env ids e1 e2 t
   in
@@ -108,26 +109,25 @@ and infer_abs env { args; body = (body, rettyp) } t =
   let env = List.fold_left (fun env (id, typ) -> E.add id (Type.Mono (apply s typ)) env) env args in
   let s2 = infer_m env (body, rettyp) in
   combine s2 s
-and infer_app env args t =
-  match args with
-  | ((f, f_t)::args) ->
-    let f_t' = Type.func (List.map snd args) t in
-    let s = infer_m env (f, f_t') in
-    let env = apply_e s env in
-    let s = List.fold_left (fun s (e, t) -> combine (infer_m env (e, apply s t)) s) s args in
-    combine s (unify (apply s f_t') f_t) (* type-check f_t *)
-  | _ -> failwith "Empty application"
+and infer_app env (f, f_t) args t =
+  let f_t' = Type.func (List.map snd args) t in
+  let s = infer_m env (f, f_t') in
+  let env = apply_e s env in
+  let s = List.fold_left (fun s (e, t) -> combine (infer_m env (e, apply s t)) s) s args in
+  combine s (unify (apply s f_t') f_t) (* type-check f_t *)
 and infer_let env (id, p) (e1, t1) (e2, t2) t =
   let s1 = infer_m env (e1, t1) in
   let t1 = apply s1 t1 in
   let env = apply_e s1 env in
-  let s1, env = (match p with
-    | Type.Mono mono -> let s1 = combine (unify mono t1) s1 in (* type-check p *)
-      s1, E.add id (generalize env (apply s1 t1)) env
-    | Type.Forall _ -> (
-      Format.fprintf Format.err_formatter "Type checking of polymorphic types is not implemented yet. Got: %a\n" Type.pp_p p;
-      s1, E.add id (generalize env (apply s1 t1)) env)
+  let s1, new_p = (match p with
+    | { contents = Type.Mono mono } -> let s1 = combine s1 (unify mono t1) in (* type-check p *)
+      s1, generalize env (apply s1 t1)
+    | { contents = (Type.Forall _) as real_p } ->
+      Format.fprintf Format.err_formatter "Type checking of polymorphic types is not implemented yet. Got: %a\n" Type.pp_p real_p;
+      s1, generalize env (apply s1 t1)
   ) in
+  p := new_p;
+  let env = E.add id new_p env in
   let s2 = infer_m env (e2, apply s1 t2) in
   let s = combine s2 s1 in
   combine s (unify (apply s t2) t)
@@ -168,8 +168,10 @@ let default_env = let env = E.empty in
   (* ('a, 'b) -> bool *)
   let f_a_b_bool' = Type.(func [Var a; Var b] bool) in
   let f_a_b_bool = Type.(Forall (a, Forall (b, Mono f_a_b_bool'))) in
-  let bop = [Eq; LE] in
-  let env = List.fold_left (fun env op -> E.add (op_b_to_id op) f_a_b_bool env) env bop in
+  let f_a_a_bool' = Type.(func [Var a; Var a] bool) in
+  let f_a_a_bool = Type.(Forall (a, Mono f_a_a_bool')) in
+  let env = E.add (op_b_to_id Eq) f_a_b_bool env in
+  let env = E.add (op_b_to_id LE) f_a_a_bool env in
 
   let f_a_int_arraya' = Type.(func [Var a; int] (array (Var a))) in
   let f_a_int_arraya = Type.(Forall (a, Mono f_a_int_arraya')) in

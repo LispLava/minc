@@ -3,11 +3,17 @@ type c =
   | Bool of bool
   | Int of int
   | Float of float
-  | String of string [@@deriving show, eq, ord]
+  | String of string [@@deriving eq, ord]
 type u = Not | Neg [@@deriving show, eq, ord]
 type b = Add | Sub | Mul | Div | Mod | Eq | LE | Array | Get [@@deriving show, eq, ord]
 type t = If | Put [@@deriving show, eq, ord]
-type a = Tuple | App [@@deriving show, eq, ord]
+
+let pp_c ppf = function
+  | Unit -> Format.fprintf ppf "()"
+  | Bool b -> Format.fprintf ppf "%b" b
+  | Int i -> Format.fprintf ppf "%d" i
+  | Float f -> Format.fprintf ppf "%f" f
+  | String s -> Format.fprintf ppf "%s" s
 
 let op_u_to_id x = Id.mk @@ match x with
   | Not -> "!"

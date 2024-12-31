@@ -1,4 +1,13 @@
-type t = string * int [@@deriving show, eq, ord]
+type t = string * int [@@deriving eq, ord]
+type i = t * Type.t [@@deriving eq, ord]
+type p = t * Type.p [@@deriving eq, ord]
+
+let pp ppf ((id, n): t) = match n with
+  | 0 -> Format.fprintf ppf "%s" id
+  | _ -> Format.fprintf ppf "%s_%d" id n
+let pp_i ppf (i, t) = Format.fprintf ppf "(%a : %a)" pp i Type.pp t
+let pp_p ppf (i, p) = Format.fprintf ppf "(%a : %a)" pp i Type.pp_p p
+
 
 let rec pp_list = function
   | [] -> ""
@@ -12,7 +21,7 @@ let genid s =
 
 let gentmp typ: t =
   incr counter;
-  (Printf.sprintf "T%s" (Type.id_of_mono typ)), !counter
+  "#", !counter
 
 let gen_typed_tmp typ =
   let id = gentmp typ in

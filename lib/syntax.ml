@@ -3,11 +3,11 @@ type e =
   | U of Op.u * t
   | B of Op.b * t * t
   | T of Op.t * t * t * t
-  | Let of (Id.t * Type.p) * t * t (* let polymorphism *)
+  | Let of (Id.t * Type.p ref) * t * t (* let polymorphism *)
   | Var of Id.t
-  | Abstraction of fundef
-  | A of Op.a * t list
-  | Fix of (Id.t * Type.t) * fundef
+  | Tuple of t list
+  | App of t * (t list)
+  | Fix of Id.i * fundef
   (*
   Generalizing for LetTuple would permit impredicable types like:
   (∀a. a->a) * (∀a. a->a)
@@ -16,9 +16,9 @@ type e =
   Vytiniotis. 2020. A quick look at impredicativity. Proc. ACM Program. Lang.
   4, ICFP, Article 89 (August 2020), 29 pages. https://doi.org/10.1145/3408971
   *)
-  | LetTuple of (Id.t * Type.t) list * t * t
+  | LetTuple of Id.i list * t * t
   [@@deriving show]
-and fundef = { args : (Id.t * Type.t) list; body : t } [@@deriving show]
+and fundef = { args : Id.i list; body : t } [@@deriving show]
 and t = e * Type.t [@@deriving show, eq, ord]
 
 let unit = C(Op.Unit)
@@ -39,11 +39,11 @@ let mk_le a b = B(Op.LE, a, b)
 let mk_array a b = B(Op.Array, a, b)
 let mk_if a b c = T(Op.If, a, b, c)
 let mk_put a b c = T(Op.Put, a, b, c)
-let mk_tuple a = A(Op.Tuple, a)
-let mk_app a = A(Op.App, a)
+let mk_tuple a = Tuple(a)
+let mk_app f a = App(f, a)
 
-let mk_let id rhs body =
-  (Let(id, rhs, body), snd body)
+let mk_let (id, p) rhs body =
+  (Let((id, ref p), rhs, body), snd body)
 let mk_lettuple typed_list rhs body =
   (LetTuple(typed_list, rhs, body), snd body)
 
