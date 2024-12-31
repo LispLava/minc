@@ -19,6 +19,10 @@ let genid s =
   incr counter;
   (Printf.sprintf "%s" s), !counter
 
+let gen (s, _) =
+  incr counter;
+  (Printf.sprintf "%s" s), !counter
+
 let gentmp typ: t =
   incr counter;
   "#", !counter

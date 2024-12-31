@@ -15,6 +15,8 @@ let parse (s: string) =
       let end_col = curr_pos.Lexing.pos_cnum - start_pos.Lexing.pos_bol in
       failwith (Printf.sprintf "Parse error at line %d, columns %d-%d" line start_col end_col)
 
+(* (a, b) == c(a, b) *)
+(* (+, *, ...): (a, b) -> c *)
 let prog_strs = ["let _ = () in -(10 + 10) < 20 * 2"]
 let prog_strs = prog_strs @ ["let rec f x = x in f 10"]
 let prog_strs = prog_strs @ ["let rec f1 x f = f x x in
@@ -29,7 +31,8 @@ let prog_strs = prog_strs @ ["let rec gcd (m: int) n : int =
   else (
     print_int m; print_string \", \"; print_int n; print_newline ();
     let m: int = (m mod (n: int)) in
-    gcd n m
+    let (m, n) = (n, m) in
+    gcd m n
   ) in
 print_int (gcd 239232 1526580)
 "]
@@ -37,6 +40,7 @@ let () = List.iter (fun prog_str ->
   let prog = parse prog_str in
   let m = Infer.infer prog in
   let k = Knormal.g m prog in
+  let alpha = Alpha.f k in
   (* Format.printf "\n\nsource = %s\nast = %a\ntype inference = %a\n" prog_str Syntax.pp prog Infer.pp_m m; *)
-  Format.printf "\n\nsource = %s\ntype inference =\n%a\n\n%a" prog_str Knormal.pp k Infer.pp_m m;
+  Format.printf "\n\nsource = %s\ntype inference =\n%a\n\n%a" prog_str Knormal.pp alpha Infer.pp_m m;
 ) prog_strs
