@@ -9,7 +9,7 @@ let find env xx =
   | None -> xx
 
 let rec g' env = function
-  | C c -> C c
+  | C _ as c -> c
   | U (u, x) -> U (u, find env x)
   | B (b, x, y) -> B (b, find env x, find env y)
   | T (t, x, y, z) -> T (t, find env x, find env y, find env z)

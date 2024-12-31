@@ -41,6 +41,7 @@ let () = List.iter (fun prog_str ->
   let m = Infer.infer prog in
   let k = Knormal.g m prog in
   let alpha = Alpha.f k in
+  let beta = Beta.f alpha in
   (* Format.printf "\n\nsource = %s\nast = %a\ntype inference = %a\n" prog_str Syntax.pp prog Infer.pp_m m; *)
-  Format.printf "\n\nsource = %s\ntype inference =\n%a\n\n%a" prog_str Knormal.pp alpha Infer.pp_m m;
+  Format.printf "\n\nsource = %s\ntype inference =\n%a\n\n%a" prog_str Knormal.pp beta Infer.pp_m m;
 ) prog_strs
