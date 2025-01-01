@@ -15,7 +15,7 @@ let rec g' env = function
   | T (t, x, y, z) -> T (t, find env x, find env y, find env z)
   | Let((x, p), e1, e2) ->
       let x' = Id.gen x in
-      Let((x', p), g env e1, g' (E.add x x' env) e2)
+      Let((x', p), g env e1, g (E.add x x' env) e2)
   | Var(x) -> Var(find' env x)
   | Tuple xs -> Tuple (List.map (find env) xs)
   | App(x, xs) -> App(find env x, List.map (find env) xs)

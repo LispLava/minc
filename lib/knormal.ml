@@ -4,7 +4,7 @@ type e =
   | U of Op.u * Id.i
   | B of Op.b * Id.i * Id.i
   | T of Op.t * Id.i * Id.i * Id.i
-  | Let of Id.p * t * e
+  | Let of Id.p * t * t
   | Var of Id.t
   | Tuple of Id.i list
   | App of Id.i * (Id.i list)
@@ -19,7 +19,7 @@ let rec pp_e ppf e = match e with
   | U (u, x) -> Format.fprintf ppf "(%a %a)" Id.pp (Op.op_u_to_id u) Id.pp_i x
   | B (b, x, y) -> Format.fprintf ppf "(%a (%a) %a)" Id.pp_i x Op.pp_b b Id.pp_i y
   | T (t, x, y, z) -> Format.fprintf ppf "%a %a %a %a" Op.pp t Id.pp_i x Id.pp_i y Id.pp_i z
-  | Let ((id, id_t), e, e') -> Format.fprintf ppf "let %a : %a = %a in\n%a" Id.pp id Type.pp_p id_t pp e pp_e e'
+  | Let ((id, id_t), e, e') -> Format.fprintf ppf "let %a : %a = %a in\n%a" Id.pp id Type.pp_p id_t pp e pp e'
   | Var x -> Id.pp ppf x
   | Tuple xs -> Format.fprintf ppf "(%a)" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ") Id.pp_i) xs
   | App (x, xs) -> Format.fprintf ppf "%a %a" Id.pp_i x (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf " ") Id.pp_i) xs
@@ -32,8 +32,8 @@ let insert_let ex k : t =
   match e with
   | Var x -> k (x, t)
   | _ -> let x = Id.gentmp t in
-    let e', t' = k (x, t) in
-    Let ((x, Mono t), ex, e'), t'
+    let (e', t') as et = k (x, t) in
+    Let ((x, Mono t), ex, et), t'
 
 let rec g (m: m) ((e, t): Syntax.t): t =
   let aa = apply m in
@@ -43,12 +43,12 @@ let rec g (m: m) ((e, t): Syntax.t): t =
   | Syntax.U(u, e) -> insert_let (g m e) (fun x -> (U(u, x), t))
   | Syntax.B(b, e1, e2) -> insert_let (g m e1) (fun x -> insert_let (g m e2) (fun y -> (B(b, x, y), t)))
   | Syntax.T(op, e1, e2, e3) -> insert_let (g m e1) (fun x -> insert_let (g m e2) (fun y -> insert_let (g m e3) (fun z -> (T(op, x, y, z), t))))
-  | Syntax.Let((id, id_t), e1, e2) -> let (e1, t1) = g m e1 in
+  | Syntax.Let((id, id_t), e1, e2) -> let (e1, t1) as et1 = g m e1 in
     assert ((aa t1) = t1);
-    let (e2, t2) = g m e2 in
+    let (e2, t2) as et2 = g m e2 in
     assert ((aa t2) = t2);
     let id_t = apply_p m !id_t in
-    (Let((id, id_t), (e1, t1), e2), t2)
+    (Let((id, id_t), et1, et2), t2)
   | Syntax.Var x -> (Var x, t)
   | Syntax.Tuple(es) -> let rec bind xs ts = function
     | [] -> Tuple(xs), Type.tuple ts
