@@ -36,7 +36,7 @@ let prog_strs = prog_strs @ ["let rec gcd (m: int) n : int =
   ) in
 print_int (gcd 239232 1526580)
 "]
-let () = List.iter (fun prog_str ->
+let ff () = List.iter (fun prog_str ->
   let prog = parse prog_str in
   let m = Infer.infer prog in
   let k = Knormal.g m prog in
@@ -46,3 +46,14 @@ let () = List.iter (fun prog_str ->
   (* Format.printf "\n\nsource = %s\nast = %a\ntype inference = %a\n" prog_str Syntax.pp prog Infer.pp_m m; *)
   Format.printf "\n\nsource = %s\ntype inference =\n%a\n\n%a" prog_str Knormal.pp assoc Infer.pp_m m;
 ) prog_strs
+
+let tryfun risky_function =
+  try
+    risky_function ()
+  with
+  | exn ->
+      Printf.eprintf "Exception: %s\n" (Printexc.to_string exn);
+      Printf.eprintf "Backtrace:\n%s\n" (Printexc.get_backtrace ());
+      exit 1
+
+let () = Printexc.record_backtrace true; tryfun ff

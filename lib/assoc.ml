@@ -12,6 +12,9 @@ let y = e1 in
 let x = e2 in
 e3
 ```
+Note that the above transformation is only legal for ordinary let bindings, not
+let-rec because function definitions can capture the environment. See also
+syntax.ml.
 *)
 let rec f xt =
   let (x, t) = xt in
@@ -23,6 +26,6 @@ let rec f xt =
       | LetTuple(xs, e3, e4) -> LetTuple(xs, e3, insert e4 e2), t
       | e -> Let(x, e1, e2), t
   ) in insert (f e1) (f e2)
-  | Fix(x, {args; body}) -> Fix(x, {args; body = f body}), t
+  | LetRec(x, {args; body}, e2) -> LetRec(x, {args; body = f body}, f e2), t
   | LetTuple(xs, e1, e2) -> LetTuple(xs, e1, f e2), t
   | _ -> xt

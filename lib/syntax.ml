@@ -7,7 +7,11 @@ type e =
   | Var of Id.t
   | Tuple of t list
   | App of t * (t list)
-  | Fix of Id.i * fundef
+  (* Type.t is for the monomorphic function type pre-generalization. Also,
+  LetRec needs to be specialized because a function can capture part of
+  environment via closures. Thus, function definitions cannot be trivially
+  flattened by the assoc.ml transformation. *)
+  | LetRec of (Id.t * Type.p ref) * Type.t * fundef * t
   (*
   Generalizing for LetTuple would permit impredicable types like:
   (∀a. a->a) * (∀a. a->a)
@@ -50,4 +54,5 @@ let mk_lettuple typed_list rhs body =
 let mk_func id (abstraction, rettyp) exp =
   let typs = List.map snd abstraction.args in
   let m = Type.func typs rettyp in
-  mk_let (id, Type.Mono m) (Fix((id, Type.gentyp ()), abstraction), m) exp
+  let id = (id, ref(Type.Mono m)) in
+  LetRec(id, m, abstraction, exp), snd exp

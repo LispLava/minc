@@ -19,12 +19,12 @@ let rec g' env = function
   | Var(x) -> Var(find' env x)
   | Tuple xs -> Tuple (List.map (find env) xs)
   | App(x, xs) -> App(find env x, List.map (find env) xs)
-  | Fix((x, t), {args; body}) ->
+  | LetRec((x, t), {args; body}, e) ->
       let x' = Id.gen x in
       let env = E.add x x' env in
       let (args, env) = List.fold_left (fun (args', env) (x, t) -> let x' = Id.gen x in
         (args' @ [x', t], E.add x x' env)) ([], env) args in
-      Fix((x', t), {args; body = g env body})
+      LetRec((x', t), {args; body = g env body}, g env e)
   | LetTuple(xs, e1, e2) ->
       let (xs', env) = List.fold_left (fun (xs', env) (x, t) -> let x' = Id.gen x in
         (xs' @ [x', t], E.add x x' env)) ([], env) xs in

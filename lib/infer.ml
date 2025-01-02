@@ -17,10 +17,7 @@ let rec apply (m: m) t = match t with
   | Type.App (f, ts) -> Type.App (f, List.map (apply m) ts)
 let rec apply_p (m: m) t = match t with
   | Type.Mono t -> Type.Mono (apply m t)
-  | Type.Forall (x, t) -> if M.mem x m then
-      failwith "Internal error: substitution conflicts with quantified variable."
-    else
-      Type.Forall (x, apply_p m t)
+  | Type.Forall (x, t) -> Type.Forall (x, apply_p (M.remove x m) t)
 let apply_e (m: m) (env: env) = E.map (fun t -> apply_p m t) env
 
 let combine (m2: m) (m1: m) = M.fold (fun k v m -> M.add k (apply m2 v) m) m1 m2
@@ -61,7 +58,9 @@ let rec unify (t1: Type.t) (t2: Type.t): m =
   (* Format.printf "unify: %a, %a\n" Type.pp t1 Type.pp t2; flush stdout; *)
   match t1, t2 with
   | Type.Var x, Type.Var y when x == y -> M.empty
-  | Type.Var x, _ -> if x <$ t2 then failwith "Infinite type detected." else M.add x t2 M.empty
+  | Type.Var x, _ -> if x <$ t2 then
+      failwith (Format.asprintf "Infinite type detected. Trying to unify %a with %a" Type.pp_v x Type.pp t2)
+    else M.add x t2 M.empty
   | _, Type.Var _ -> unify t2 t1
   | Type.App (f1, ts1), Type.App (f2, ts2) ->
     if f1 != f2 then type_mismatch t1 t2
@@ -86,7 +85,7 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   | Syntax.Var id -> (match E.find_opt id env with
     | Some p -> unify t (inst p)
     | None -> failwith (Format.asprintf "Unbound variable: %a" Id.pp id))
-  | Syntax.Fix(id, fundef) -> infer_fix env id fundef t
+  | Syntax.LetRec(id, abs_t, fundef, e2) -> infer_letrec env id abs_t fundef e2 t
   | Syntax.Tuple(args) -> infer_tuple env args t
   | Syntax.App(f, args) -> infer_app env f args t
   | Syntax.Let(id, e1, e2) -> infer_let env id e1 e2 t
@@ -95,6 +94,12 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   (* (Format.printf "s = %a\nex = \n%a\n\n\n\n\n" pp_m s Syntax.pp_e e; flush stdout; s) *)
   (* (Format.printf "s = %a\n\n" pp_m s; flush stdout; s) *)
   s
+and infer_letrec env (id, p) abs_t fundef e t =
+  (* fundef should be treated as an anonymous function so that it doesn't
+  interfere with the environment and let-polymorphism. *)
+  let s1 = infer_fix env (id, abs_t) fundef abs_t in
+  let s2 = infer_let' (apply_e s1 env) (id, p) (s1, apply s1 abs_t) e t in
+  combine s2 s1
 and infer_fix env (id, t1) fundef t =
   let env = E.add id (Type.Mono t) env in
   let s = infer_abs env fundef t in
@@ -121,6 +126,8 @@ and infer_let env (id, p) (e1, t1) (e2, t2) t =
   let s1 = infer_m env (e1, t1) in
   let t1 = apply s1 t1 in
   let env = apply_e s1 env in
+  infer_let' env (id, p) (s1, t1) (e2, t2) t
+and infer_let' env (id, p) (s1, t1) (e2, t2) t =
   let s1, new_p = (match p with
     | { contents = Type.Mono mono } -> let s1 = combine s1 (unify mono t1) in (* type-check p *)
       s1, generalize env (apply s1 t1)

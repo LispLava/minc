@@ -14,7 +14,7 @@ let rec g' env = function
   | Var(x) -> Var(find' env x)
   | Tuple xs -> Tuple (List.map (find env) xs)
   | App(x, xs) -> App(find env x, List.map (find env) xs)
-  | Fix(x, {args; body}) -> Fix(x, {args; body = g env body})
+  | LetRec(x, {args; body}, e) -> LetRec(x, {args; body = g env body}, g env e)
   | LetTuple(xs, e1, e2) -> LetTuple(xs, find env e1, g env e2)
 and g env (e, t) = (g' env e), t
 
