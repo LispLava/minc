@@ -86,9 +86,7 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   | Syntax.Var id -> (match E.find_opt id env with
     | Some p -> unify t (inst p)
     | None -> failwith (Format.asprintf "Unbound variable: %a" Id.pp id))
-  | Syntax.Fix((id, t1), fundef) -> let env = E.add id (Type.Mono t) env in
-    let s = infer_abs env fundef t in
-    combine s (unify (apply s t) t1)
+  | Syntax.Fix(id, fundef) -> infer_fix env id fundef t
   | Syntax.Tuple(args) -> infer_tuple env args t
   | Syntax.App(f, args) -> infer_app env f args t
   | Syntax.Let(id, e1, e2) -> infer_let env id e1 e2 t
@@ -97,6 +95,10 @@ let rec infer_m (env: env) ((e, t): Syntax.t): m =
   (* (Format.printf "s = %a\nex = \n%a\n\n\n\n\n" pp_m s Syntax.pp_e e; flush stdout; s) *)
   (* (Format.printf "s = %a\n\n" pp_m s; flush stdout; s) *)
   s
+and infer_fix env (id, t1) fundef t =
+  let env = E.add id (Type.Mono t) env in
+  let s = infer_abs env fundef t in
+  combine s (unify (apply s t) t1)
 and infer_tuple env args t =
   let s = List.fold_left (fun s (e, t) -> combine (infer_m env (e, t)) s) M.empty args in
   let ts = List.map (fun (_, t) -> apply s t) args in
