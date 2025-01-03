@@ -21,7 +21,7 @@
  (name minc)
  (synopsis "A minimalistic compiler for a simple C-like low level Meta Language")
  (description "Minc is a work-in-progress (WIP) minimalistic compiler for a C-like, low-level Meta Language, built with the help of Menhir and LLVM.")
- (depends ocaml dune)
+ (depends ocaml dune ctypes-foreign ctypes ppx_deriving)
  (tags
   (topics "compiler" "c-like" "low-level")))
 

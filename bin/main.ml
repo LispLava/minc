@@ -54,7 +54,8 @@ let ff () = List.iter (fun prog_str ->
   Knormal.check_type k;
   let clos = Closure.f assoc in
   Format.printf "\n\nclosure conversion =\n%a\n" Closure.pp_prog clos;
-) prog_strs
+) prog_strs;
+  Llvm.simple_test ()
 
 let tryfun risky_function =
   try

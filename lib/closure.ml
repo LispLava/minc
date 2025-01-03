@@ -38,7 +38,7 @@ and pp ppf (e, t) = Format.fprintf ppf "(%a : %a)" pp' e Type.pp t
 
 let pp_prog ppf (Prog(fundefs, e)) =
   List.iter (fun { name; args; formal_fv; body } ->
-    Format.fprintf ppf "let rec (%a : %a) %a | %a = %a\n" Id.pp_l (fst name) Type.pp_p (snd name)
+    Format.fprintf ppf "let rec (%a : %a) %a | %a = %a\n=======\n" Id.pp_l (fst name) Type.pp_p (snd name)
       (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf " ") Id.pp_i) args
       (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf " ") Id.pp_i) formal_fv
        pp body) fundefs;
