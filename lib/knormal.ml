@@ -19,7 +19,7 @@ let rec pp_e ppf e = match e with
   | U (u, x) -> Format.fprintf ppf "(%a %a)" Id.pp (Op.op_u_to_id u) Id.pp_i x
   | B (b, x, y) -> Format.fprintf ppf "(%a (%a) %a)" Id.pp_i x Op.pp_b b Id.pp_i y
   | T (t, x, y, z) -> Format.fprintf ppf "%a %a %a %a" Op.pp t Id.pp_i x Id.pp_i y Id.pp_i z
-  | Let ((id, id_t), e, e') -> Format.fprintf ppf "let %a : %a = %a in\n%a" Id.pp id Type.pp_p id_t pp e pp e'
+  | Let ((id, id_t), ((_, t1) as e), ((_, t2) as e')) -> Format.fprintf ppf "let %a : %a = %a in\n%a" Id.pp id Type.pp_p id_t pp e pp e'
   | LetRec ((id, id_t), {args; body}, e) -> Format.fprintf ppf "let rec %a %a : %a = %a in\n%a"
     Id.pp id
     (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf " ") Id.pp_i) args
@@ -31,6 +31,13 @@ let rec pp_e ppf e = match e with
   | App (x, xs) -> Format.fprintf ppf "%a %a" Id.pp_i x (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf " ") Id.pp_i) xs
   | LetTuple (ids, x, e) -> Format.fprintf ppf "let %a = %a in\n%a" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ") Id.pp_i) ids Id.pp_i x pp e
 and pp ppf (e, t) = Format.fprintf ppf "(%a : %a)" pp_e e Type.pp t
+(* and pp ppf (e, t) = Format.fprintf ppf "%a" pp_e e *)
+
+let rec check_type (e, t) = match e with
+  | Let(_, e1, e2) -> assert (t = snd e2); check_type e1; check_type e2
+  | LetRec(_, {args; body}, e2) -> assert (t = snd e2); check_type body; check_type e2
+  | LetTuple(_, _, e2) -> assert (t = snd e2); check_type e2
+  | _ -> ()
 
 let insert_let ex k : t =
   let (e, t) = ex in
