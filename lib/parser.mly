@@ -6,6 +6,7 @@ let mkptyp x ty = (x, Type.Mono ty)
 let settyp (x, _) ty = (x, ty)
 let parse_type ((x, _): Id.t) = Type.parse_type x
 let unit_id = addptyp (Id.mk "()")
+let mono_unit_id = addtyp (Id.mk "()")
 %}
 
 %token <bool> BOOL
@@ -99,9 +100,9 @@ type_exp:
     { Type.App((parse_type $2), $1) }
 
 type_args:
-| type_args simple_type_exp
+| simple_type_exp type_args
     %prec prec_app
-    { $1 @ [$2] }
+    { $1 :: $2 }
 | simple_type_exp
     %prec prec_app
     { [$1] }
@@ -115,8 +116,8 @@ simple_type_exp:
 tuple_type:
 | type_exp AST type_exp
     { [$1; $3] }
-| tuple_type AST type_exp
-    { $1 @ [$3] }
+| type_exp AST tuple_type
+    { $1 :: $3 }
 
 exp:
 | simple_exp
@@ -194,6 +195,8 @@ fundef:
     { { args = $1; body = $5 }, $3 }
 
 formal_args:
+| LPAREN RPAREN
+    { [ mono_unit_id ] }
 | IDENT
     { [addtyp $1] }
 | IDENT formal_args
@@ -204,16 +207,16 @@ formal_args:
     { $2 :: $4 }
 
 actual_args:
-| actual_args simple_exp
+| simple_exp actual_args
     %prec prec_app
-    { $1 @ [$2] }
+    { $1 :: $2 }
 | simple_exp
     %prec prec_app
     { [$1] }
 
 elems:
-| elems COMMA exp
-    { $1 @ [$3] }
+| exp COMMA elems
+    { $1 :: $3 }
 | exp COMMA exp
     { [$1; $3] }
 
@@ -224,7 +227,7 @@ maybe_typed_indent:
     { addtyp $1 }
 
 pat:
-| pat COMMA maybe_typed_indent
-    { $1 @ [$3] }
+| maybe_typed_indent COMMA pat
+    { $1 :: $3 }
 | maybe_typed_indent COMMA maybe_typed_indent
     { [$1; $3] }
