@@ -36,15 +36,24 @@ let prog_strs = prog_strs @ ["let rec gcd (m: int) n : int =
   ) in
 print_int (gcd 239232 1526580)
 "]
+let prog_strs = prog_strs @ ["let rec quad (x: int) : int =
+  let rec double () = 2 * x in
+  2 * double () in
+print_int (quad 10)
+"]
 let ff () = List.iter (fun prog_str ->
+  Format.printf "\n\nsource = %s" prog_str;
   let prog = parse prog_str in
+  (* Format.printf "\n\nast = %a\n" Syntax.pp prog; *)
   let m = Infer.infer prog in
   let k = Knormal.g m prog in
   let alpha = Alpha.f k in
   let beta = Beta.f alpha in
   let assoc = Assoc.f beta in
-  (* Format.printf "\n\nsource = %s\nast = %a\ntype inference = %a\n" prog_str Syntax.pp prog Infer.pp_m m; *)
-  Format.printf "\n\nsource = %s\ntype inference =\n%a\n\n%a" prog_str Knormal.pp assoc Infer.pp_m m;
+  Format.printf "\n\nFlattened K-normal form =\n%a\n\n%a" Knormal.pp assoc Infer.pp_m m;
+  Knormal.check_type k;
+  let clos = Closure.f assoc in
+  Format.printf "\n\nclosure conversion =\n%a\n" Closure.pp_prog clos;
 ) prog_strs
 
 let tryfun risky_function =
