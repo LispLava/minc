@@ -21,11 +21,11 @@ let rec f xt =
   match x with
   | Let(x, e1, e2) ->
     (* insert re-associated e2 to the bottom of re-associated e1. *)
-    let rec insert (ex, t) e2 = (match ex with
-      | Let(y, e3, e4) -> Let(y, e3, insert e4 e2), t
-      | LetTuple(xs, e3, e4) -> LetTuple(xs, e3, insert e4 e2), t
-      | e -> Let(x, e1, e2), t
-  ) in insert (f e1) (f e2)
+    let rec insert ((ex, _) as e1) ((_, t) as e2) = match ex with
+    | Let(y, e3, e4) -> let e4 = insert e4 e2 in Let(y, e3, e4), t
+    | LetTuple(xs, e3, e4) -> let e4 = insert e4 e2 in LetTuple(xs, e3, e4), t
+    | _ -> Let(x, e1, e2), t
+    in insert (f e1) (f e2)
   | LetRec(x, {args; body}, e2) -> LetRec(x, {args; body = f body}, f e2), t
   | LetTuple(xs, e1, e2) -> LetTuple(xs, e1, f e2), t
   | _ -> xt
